@@ -1,0 +1,132 @@
+{
+  "sweep": {
+    "id": "2026-W26",
+    "generatedAt": "2026-06-28T18:00:00Z",
+    "weekStart": "2026-06-22",
+    "weekEnd": "2026-06-28",
+    "sources": ["gmail", "outlook", "whatsapp", "imessage", "meeting"],
+    "status": "mock"
+  },
+  "items": [
+    {
+      "id": "itm_001",
+      "title": "Send revised heads of terms to Mercer Row landlord",
+      "detail": "Email thread re: Unit 4 Mercer Row. Landlord's agent asked for the revised HoT 'by end of the week'. You said you'd turn it around Monday.",
+      "type": "task",
+      "source": "outlook",
+      "sourceRef": "Re: Unit 4 Mercer Row — Heads of Terms",
+      "from": "David Reilly (Carter Jonas)",
+      "receivedAt": "2026-06-24T09:12:00Z",
+      "due": "2026-06-29",
+      "appointment": null,
+      "confidence": 0.92,
+      "needsDecision": false,
+      "suggestedTrelloList": "This Week",
+      "decision": "pending"
+    },
+    {
+      "id": "itm_002",
+      "title": "Site visit — Hadley Park development",
+      "detail": "WhatsApp from Tom: 'Can you do the Hadley Park walkround Tuesday 10am? Bring the drainage plans.' You replied 👍.",
+      "type": "appointment",
+      "source": "whatsapp",
+      "sourceRef": "WhatsApp · Tom Bricks",
+      "from": "Tom Bricks",
+      "receivedAt": "2026-06-25T16:40:00Z",
+      "due": null,
+      "appointment": {
+        "start": "2026-06-30T10:00:00+01:00",
+        "end": "2026-06-30T11:30:00+01:00",
+        "location": "Hadley Park, plot entrance off Mill Lane"
+      },
+      "confidence": 0.81,
+      "needsDecision": false,
+      "suggestedTrelloList": "Appointments",
+      "decision": "pending"
+    },
+    {
+      "id": "itm_003",
+      "title": "Chase solicitor on Northgate completion date",
+      "detail": "iMessage from Priya: 'Any word on Northgate completion? Client keeps asking.' No date agreed yet — needs you to push the solicitor.",
+      "type": "task",
+      "source": "imessage",
+      "sourceRef": "Messages · Priya",
+      "from": "Priya",
+      "receivedAt": "2026-06-26T11:05:00Z",
+      "due": null,
+      "appointment": null,
+      "confidence": 0.74,
+      "needsDecision": false,
+      "suggestedTrelloList": "This Week",
+      "decision": "pending"
+    },
+    {
+      "id": "itm_004",
+      "title": "Sort the thing with John",
+      "detail": "WhatsApp from John: 'we still need to sort that thing out mate'. Ambiguous — no clear action or subject. Flagged for you to clarify or bin.",
+      "type": "task",
+      "source": "whatsapp",
+      "sourceRef": "WhatsApp · John Marsh",
+      "from": "John Marsh",
+      "receivedAt": "2026-06-23T20:14:00Z",
+      "due": null,
+      "appointment": null,
+      "confidence": 0.31,
+      "needsDecision": true,
+      "suggestedTrelloList": "Inbox",
+      "decision": "pending"
+    },
+    {
+      "id": "itm_005",
+      "title": "Action: circulate Q3 acquisition pipeline to partners",
+      "detail": "From Monday's partner call (meeting notes). Owner: you. Agreed to send the updated pipeline deck before next week's call.",
+      "type": "task",
+      "source": "meeting",
+      "sourceRef": "Partner Call — 23 Jun (notes)",
+      "from": "Partner call",
+      "receivedAt": "2026-06-23T15:30:00Z",
+      "due": "2026-06-30",
+      "appointment": null,
+      "confidence": 0.88,
+      "needsDecision": false,
+      "suggestedTrelloList": "This Week",
+      "decision": "pending"
+    },
+    {
+      "id": "itm_006",
+      "title": "Lunch with Sarah — Friday 1pm, The Ivy",
+      "detail": "Gmail from Sarah confirming lunch Friday 1pm at The Ivy. Personal. Appointment for the calendar.",
+      "type": "appointment",
+      "source": "gmail",
+      "sourceRef": "Gmail · Lunch Friday?",
+      "from": "Sarah Haswell",
+      "receivedAt": "2026-06-27T08:20:00Z",
+      "due": null,
+      "appointment": {
+        "start": "2026-07-03T13:00:00+01:00",
+        "end": "2026-07-03T14:30:00+01:00",
+        "location": "The Ivy, West Street"
+      },
+      "confidence": 0.9,
+      "needsDecision": false,
+      "suggestedTrelloList": "Appointments",
+      "decision": "pending"
+    },
+    {
+      "id": "itm_007",
+      "title": "Newsletter: 'Property Week digest'",
+      "detail": "Marketing email. No action for you — included so you can confirm it's noise and bin it.",
+      "type": "task",
+      "source": "gmail",
+      "sourceRef": "Gmail · Property Week Digest",
+      "from": "Property Week",
+      "receivedAt": "2026-06-26T06:00:00Z",
+      "due": null,
+      "appointment": null,
+      "confidence": 0.12,
+      "needsDecision": false,
+      "suggestedTrelloList": "Inbox",
+      "decision": "pending"
+    }
+  ]
+}

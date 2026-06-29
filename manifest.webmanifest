@@ -1,0 +1,13 @@
+{
+  "name": "Weekly Sweep — Task Capture",
+  "short_name": "Sweep",
+  "description": "One button to review your week and turn it into a single tick-or-bin task list.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

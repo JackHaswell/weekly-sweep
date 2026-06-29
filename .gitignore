@@ -1,0 +1,14 @@
+# Secrets — never commit
+sweep/credentials.json
+sweep/token.json
+
+# Env
+.venv/
+__pycache__/
+*.pyc
+
+# Raw inbox dumps (may contain private mail)
+sweep/raw/
+
+# Local decision state
+sweep/results/

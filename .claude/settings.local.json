@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__mcp-registry__list_connectors",
+      "mcp__mcp-registry__search_mcp_registry",
+      "Bash(scutil --get LocalHostName)",
+      "Bash(echo \"$\\(scutil --get LocalHostName \\).local\")",
+      "Bash(scutil --get ComputerName)",
+      "Bash(curl -s -m4 http://localhost:8731/app.js)",
+      "Bash(git --version)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git -c user.email=\"jack.haswell@capitalonepropertypartners.com\" -c user.name=\"Jack Haswell\" commit -q -m \"Weekly Sweep: PWA shell, My Tasks, Gmail fetcher\")"
+    ]
+  }
+}
