@@ -4,16 +4,26 @@ One button each Sunday → I read your week (Outlook, Gmail, WhatsApp, iMessage,
 → you get a single list to **Keep / Later / Bin** → approved items go to **Trello**, and approved
 appointments also go to your **Outlook calendar**.
 
-## Run it
+## The app (live, always-on)
+
+**https://jackhaswell.github.io/weekly-sweep/**
+
+Hosted on GitHub Pages — permanent HTTPS URL, reachable from any network, anytime, no laptop needed.
+On your iPhone: open it in Safari → Share → **Add to Home Screen**.
+
+### Deploy an update
+Pages auto-deploys on every push to `main`:
 
 ```bash
 cd "Task Capture App"
-python3 -m http.server 8731
+git add -A && git commit -m "your change" && git push
 ```
+(The GitHub CLI lives at `./bin/gh`; auth is already set up.)
 
-- On this Mac: <http://localhost:8731>
-- On your **iPhone** (same Wi-Fi): `http://192.168.1.240:8731`
-  → then Share → **Add to Home Screen** to install it as an app.
+### Local dev (optional, while editing)
+```bash
+python3 -m http.server 8731   # then http://localhost:8731
+```
 
 ## Architecture
 
