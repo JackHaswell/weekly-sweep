@@ -12,3 +12,6 @@ sweep/raw/
 
 # Local decision state
 sweep/results/
+
+# Local editor/harness config
+.claude/
