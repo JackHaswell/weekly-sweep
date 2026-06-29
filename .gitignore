@@ -15,3 +15,10 @@ sweep/results/
 
 # Local editor/harness config
 .claude/
+
+# Microsoft secrets
+sweep/ms_config.json
+sweep/ms_token.json
+
+# Trello secrets
+sweep/trello_config.json
