@@ -139,3 +139,7 @@ body{
 .trow__meta .tag.appt{color:#ffd479;border-color:rgba(247,185,85,.4)}
 .trow__del{flex:none;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:2px 4px;line-height:1}
 .trow__del:active{color:var(--no)}
+.trow__send{flex:none;background:var(--accent);border:none;color:#fff;font-size:16px;font-weight:800;cursor:pointer;width:34px;height:34px;border-radius:10px;margin-top:1px}
+.trow__send:active{transform:scale(.94)}
+.trow__meta .tag.unsent{color:var(--snooze);border-color:rgba(247,185,85,.4)}
+.trow__meta .tag.sent{color:var(--ok);border-color:rgba(47,208,122,.4)}

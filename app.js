@@ -283,10 +283,13 @@ async function addManualTask() {
   setStatus("Sending to Trello…", "");
   const r = await captureToTrello(task, target);
   if (r.ok) {
+    const list = loadManual();
+    const t = list.find((x) => x.id === task.id);
+    if (t) { t.sent = true; saveManual(list); renderTasks(); }
     setStatus("✓ Captured to your " + (target === "DEEP" ? "DEEP" : "Personal") + " board" +
       (r.created === 0 ? " (already there)." : "."), "ok");
   } else {
-    setStatus("⚠︎ Saved here, but couldn't reach Trello (" + r.msg + ").", "warn");
+    setStatus("⚠︎ Saved here — tap ↻ on the task to send once your passphrase is right (" + r.msg + ").", "warn");
   }
 }
 
@@ -299,8 +302,6 @@ function setStatus(msg, kind) {
 }
 
 async function captureToTrello(task, target) {
-  const pass = getPass();
-  if (!pass) return { ok: false, msg: "no passphrase" };
   const item = {
     title: task.title,
     detail: task.detail || "Added via quick capture",
@@ -315,18 +316,39 @@ async function captureToTrello(task, target) {
     labels: target === "DEEP" ? ["Owner: Jack", "THIS WEEK"] : [],
     suggestedTrelloList: task.type === "appointment" ? "Appointments" : "Inbox",
   };
-  try {
-    const res = await fetch(BROKER + "/push", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Sweep-Pass": pass },
-      body: JSON.stringify({ items: [item] }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.status === 401) { localStorage.removeItem("sweep_pass"); return { ok: false, msg: "wrong passphrase" }; }
-    if (!res.ok) return { ok: false, msg: data.error || ("HTTP " + res.status) };
-    return { ok: true, created: data.created };
-  } catch (_) {
-    return { ok: false, msg: "offline" };
+  let pass = getPass();
+  for (let attempt = 0; attempt < 2; attempt++) {       // re-ask once if the passphrase is wrong
+    if (!pass) return { ok: false, msg: "no passphrase" };
+    try {
+      const res = await fetch(BROKER + "/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Sweep-Pass": pass },
+        body: JSON.stringify({ items: [item] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) { localStorage.removeItem("sweep_pass"); pass = getPass(true); continue; }
+      if (!res.ok) return { ok: false, msg: data.error || ("HTTP " + res.status) };
+      return { ok: true, created: data.created };
+    } catch (_) {
+      return { ok: false, msg: "no connection" };
+    }
+  }
+  return { ok: false, msg: "wrong passphrase" };
+}
+
+async function resendTask(id) {
+  const tasks = loadManual();
+  const task = tasks.find((t) => t.id === id);
+  if (!task) return;
+  setStatus("Sending to Trello…", "");
+  const r = await captureToTrello(task, task.target || "DEEP");
+  if (r.ok) {
+    task.sent = true;
+    saveManual(tasks);
+    renderTasks();
+    setStatus("✓ Sent to your " + ((task.target || "DEEP") === "DEEP" ? "DEEP" : "Personal") + " board.", "ok");
+  } else {
+    setStatus("⚠︎ Still couldn't send (" + r.msg + ").", "warn");
   }
 }
 
@@ -375,22 +397,31 @@ function renderTaskRow(t) {
   const check = el("button", "check", "✓");
   check.addEventListener("click", () => toggleDone(t.id));
 
+  const needsSend = !t.done && t.target && t.target !== "local" && !t.sent;
+
   const main = el("div", "trow__main");
   main.appendChild(el("div", "trow__title", escapeHtml(t.title)));
-  if (t.detail || t.appointment || t.due) {
-    const meta = el("div", "trow__meta");
-    if (t.appointment) meta.appendChild(el("span", "tag appt", "📅 " + fmtDateTime(t.appointment.start) +
-      (t.appointment.location ? " · " + escapeHtml(t.appointment.location) : "")));
-    if (t.due) meta.appendChild(el("span", "tag", "Due " + fmtDate(t.due)));
-    if (t.detail) meta.appendChild(el("span", "tag", escapeHtml(t.detail.slice(0, 60))));
-    main.appendChild(meta);
+  const meta = el("div", "trow__meta");
+  if (t.appointment) meta.appendChild(el("span", "tag appt", "📅 " + fmtDateTime(t.appointment.start) +
+    (t.appointment.location ? " · " + escapeHtml(t.appointment.location) : "")));
+  if (t.due) meta.appendChild(el("span", "tag", "Due " + fmtDate(t.due)));
+  if (t.detail) meta.appendChild(el("span", "tag", escapeHtml(t.detail.slice(0, 60))));
+  if (needsSend) meta.appendChild(el("span", "tag unsent", "⚠︎ not in Trello yet"));
+  else if (t.sent) meta.appendChild(el("span", "tag sent", "✓ in Trello"));
+  if (meta.childNodes.length) main.appendChild(meta);
+
+  row.appendChild(check);
+  row.appendChild(main);
+
+  if (needsSend) {
+    const send = el("button", "trow__send", "↻");
+    send.setAttribute("aria-label", "Send to Trello");
+    send.addEventListener("click", () => resendTask(t.id));
+    row.appendChild(send);
   }
 
   const del = el("button", "trow__del", "✕");
   del.addEventListener("click", () => deleteTask(t.id));
-
-  row.appendChild(check);
-  row.appendChild(main);
   row.appendChild(del);
   return row;
 }
