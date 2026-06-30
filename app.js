@@ -222,10 +222,12 @@ async function confirmPush() {
     if (!res.ok) throw new Error(data.error || ("Push failed (HTTP " + res.status + ")"));
     $("#summary").classList.add("hidden");
     showView("home");
+    const boards = data.boards || {};
+    const url = boards["DEEP"] || boards["Weekly Sweep"] || Object.values(boards)[0] || "#";
     $("#home-meta").innerHTML =
       "✓ Sent <b>" + (data.created || 0) + "</b> card(s) to Trello" +
       (data.skipped ? " (" + data.skipped + " already there)" : "") + ".<br>" +
-      "<a href='" + (data.board || "#") + "' target='_blank' style='color:var(--accent);font-weight:700'>Open your board →</a>";
+      "<a href='" + url + "' target='_blank' style='color:var(--accent);font-weight:700'>Open Trello →</a>";
   } catch (e) {
     alert(e.message);
   } finally {

@@ -2,18 +2,16 @@
 """
 Push approved Weekly Sweep items to Trello.
 
-Reads data/candidates.json, takes items whose decision == the chosen status
-(default "approved"), and creates a Trello card for each on the matching list
-of a "Weekly Sweep" board (created on first run). Idempotent: skips a card if
-one with the same title already exists on the board.
+Routing (per item's "board" field):
+  • "DEEP"          → Jack's DEEP board, into "CAPTURE — DUMP NEW TASKS HERE"
+                      (Operating Manual Rule 2), with labels from the item.
+  • "Weekly Sweep"  → the personal Weekly Sweep board, into its suggestedTrelloList.
 
-Approved *appointments* are tagged here too; writing them to the Outlook
-calendar happens in the (pending) outlook step.
+Idempotent: skips a card whose title already exists on the target board.
 
 Usage:
-    ./.venv/bin/python sweep/trello_push.py                 # push approved
-    ./.venv/bin/python sweep/trello_push.py --dry-run       # show, don't create
-    ./.venv/bin/python sweep/trello_push.py --decision snoozed
+    ./.venv/bin/python sweep/trello_push.py            # push approved
+    ./.venv/bin/python sweep/trello_push.py --dry-run
 """
 
 import argparse
@@ -29,14 +27,12 @@ CONFIG = os.path.join(HERE, "trello_config.json")
 CANDIDATES = os.path.join(ROOT, "data", "candidates.json")
 API = "https://api.trello.com/1"
 
-# suggestedTrelloList value -> Trello list name (created in this order)
-LISTS = ["This Week", "Appointments", "Inbox", "Later"]
+WS_LISTS = ["This Week", "Appointments", "Inbox", "Later"]  # personal board lists
 
 
 def cfg():
-    with open(CONFIG) as f:
-        c = json.load(f)
-    return c["key"], c["token"], c.get("board_name", "Weekly Sweep")
+    c = json.load(open(CONFIG))
+    return c["key"], c["token"]
 
 
 def call(method, path, key, token, **params):
@@ -48,28 +44,37 @@ def call(method, path, key, token, **params):
     return r.json() if r.text else {}
 
 
-def ensure_board(key, token, name):
+def board_context(key, token, board_name, create_if_missing):
     boards = call("GET", "/members/me/boards", key, token, fields="name")
-    for b in boards:
-        if b["name"].lower() == name.lower():
-            return b["id"]
-    board = call("POST", "/boards", key, token, name=name, defaultLists="false")
-    return board["id"]
+    match = next((b for b in boards if b["name"].strip().lower() == board_name.strip().lower()), None)
+    if not match:
+        if not create_if_missing:
+            sys.exit(f"Board '{board_name}' not found (and won't auto-create it).")
+        match = call("POST", "/boards", key, token, name=board_name, defaultLists="false")
+    bid = match["id"]
+    lists = call("GET", f"/boards/{bid}/lists", key, token, fields="name")
+    labels = call("GET", f"/boards/{bid}/labels", key, token, fields="name,color")
+    cards = call("GET", f"/boards/{bid}/cards", key, token, fields="name")
+    label_ids = {}
+    for l in labels:
+        label_ids.setdefault((l.get("name") or "").strip().lower(), l["id"])  # first match wins
+    list_ids = {l["name"].strip().lower(): l["id"] for l in lists}
+    have = {c["name"].strip().lower() for c in cards}
+    return {"id": bid, "lists": list_ids, "labels": label_ids, "have": have, "raw_lists": lists}
 
 
-def ensure_lists(key, token, board_id):
-    existing = call("GET", f"/boards/{board_id}/lists", key, token, fields="name")
-    by_name = {l["name"].lower(): l["id"] for l in existing}
-    for name in LISTS:
-        if name.lower() not in by_name:
-            created = call("POST", "/lists", key, token, name=name, idBoard=board_id)
-            by_name[name.lower()] = created["id"]
-    return by_name
+def ensure_ws_lists(ctx, key, token):
+    for name in WS_LISTS:
+        if name.lower() not in ctx["lists"]:
+            created = call("POST", "/lists", key, token, name=name, idBoard=ctx["id"])
+            ctx["lists"][name.lower()] = created["id"]
 
 
-def existing_card_names(key, token, board_id):
-    cards = call("GET", f"/boards/{board_id}/cards", key, token, fields="name")
-    return {c["name"].strip().lower() for c in cards}
+def capture_list_id(ctx):
+    for name, lid in ctx["lists"].items():
+        if name.startswith("capture"):
+            return lid
+    sys.exit("DEEP board has no 'CAPTURE' list.")
 
 
 def card_desc(it):
@@ -89,44 +94,63 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    key, token, board_name = cfg()
+    key, token = cfg()
     data = json.load(open(CANDIDATES))
     items = [i for i in data["items"] if i.get("decision") == args.decision]
     if not items:
-        print(f"No items with decision='{args.decision}'. Nothing to push.")
+        print(f"No items with decision='{args.decision}'.")
         return
 
     if args.dry_run:
-        print(f"[dry run] would push {len(items)} card(s):")
         for it in items:
-            print(f"  • [{it.get('suggestedTrelloList','Inbox')}] {it['title']}")
+            board = it.get("board", "Weekly Sweep")
+            where = "CAPTURE" if board == "DEEP" else it.get("suggestedTrelloList", "Inbox")
+            print(f"  [{board} · {where}] {it['title']}")
+            if it.get("labels"):
+                print("        labels:", ", ".join(it["labels"]))
         return
 
-    board_id = ensure_board(key, token, board_name)
-    lists = ensure_lists(key, token, board_id)
-    have = existing_card_names(key, token, board_id)
+    contexts = {}  # board name -> context
+    created = skipped = 0
 
-    created, skipped = 0, 0
     for it in items:
-        if it["title"].strip().lower() in have:
+        board = it.get("board", "Weekly Sweep")
+        if board not in contexts:
+            contexts[board] = board_context(key, token, board, create_if_missing=(board == "Weekly Sweep"))
+            if board == "Weekly Sweep":
+                ensure_ws_lists(contexts[board], key, token)
+        ctx = contexts[board]
+
+        if it["title"].strip().lower() in ctx["have"]:
             skipped += 1
             continue
-        list_name = it.get("suggestedTrelloList", "Inbox")
-        list_id = lists.get(list_name.lower(), lists["inbox"])
+
+        if board == "DEEP":
+            list_id = capture_list_id(ctx)
+            label_ids = [ctx["labels"][n.strip().lower()] for n in it.get("labels", [])
+                         if n.strip().lower() in ctx["labels"]]
+            missing = [n for n in it.get("labels", []) if n.strip().lower() not in ctx["labels"]]
+            if missing:
+                print(f"    (note: labels not found on DEEP, skipped: {missing})")
+        else:
+            list_id = ctx["lists"].get(it.get("suggestedTrelloList", "Inbox").lower()) or ctx["lists"].get("inbox")
+            label_ids = []
+
         params = {"idList": list_id, "name": it["title"], "desc": card_desc(it)}
-        appt = it.get("appointment")
-        if appt and appt.get("start"):
-            params["due"] = appt["start"]
+        if it.get("appointment", {}) and it["appointment"].get("start"):
+            params["due"] = it["appointment"]["start"]
         elif it.get("due"):
             params["due"] = it["due"]
-        call("POST", "/cards", key, token, **params)
-        created += 1
-        print(f"  ✓ {list_name}: {it['title']}")
 
-    url = call("GET", f"/boards/{board_id}", key, token, fields="url").get("url", "")
-    print(f"\nDone — {created} card(s) created, {skipped} already existed.")
-    if url:
-        print(f"Board: {url}")
+        card = call("POST", "/cards", key, token, **params)
+        for lid in label_ids:  # attach labels via the dedicated endpoint (reliable)
+            call("POST", f"/cards/{card['id']}/idLabels", key, token, value=lid)
+        ctx["have"].add(it["title"].strip().lower())
+        created += 1
+        tag = ("DEEP/CAPTURE → " + ", ".join(it.get("labels", []))) if board == "DEEP" else ("Weekly Sweep/" + it.get("suggestedTrelloList", "Inbox"))
+        print(f"  ✓ {it['title'][:45]}  [{tag}]")
+
+    print(f"\nDone — {created} created, {skipped} already existed.")
 
 
 if __name__ == "__main__":
