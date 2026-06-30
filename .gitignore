@@ -22,3 +22,6 @@ sweep/ms_token.json
 
 # Trello secrets
 sweep/trello_config.json
+
+# Broker config (has passphrase)
+sweep/broker_config.json
