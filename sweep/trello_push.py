@@ -72,9 +72,12 @@ def ensure_ws_lists(ctx, key, token):
 
 def capture_list_id(ctx):
     for name, lid in ctx["lists"].items():
-        if name.startswith("capture"):
+        if "capture" in name and "dump" in name:
             return lid
-    sys.exit("DEEP board has no 'CAPTURE' list.")
+    for name, lid in ctx["lists"].items():
+        if "capture" in name:
+            return lid
+    sys.exit("board has no 'CAPTURE' list.")
 
 
 def card_desc(it):
@@ -125,16 +128,16 @@ def main():
             skipped += 1
             continue
 
-        if board == "DEEP":
+        if board == "Weekly Sweep":
+            list_id = ctx["lists"].get(it.get("suggestedTrelloList", "Inbox").lower()) or ctx["lists"].get("inbox")
+            label_ids = []
+        else:  # DEEP, REACTIVE, or any board → CAPTURE intake + labels
             list_id = capture_list_id(ctx)
             label_ids = [ctx["labels"][n.strip().lower()] for n in it.get("labels", [])
                          if n.strip().lower() in ctx["labels"]]
             missing = [n for n in it.get("labels", []) if n.strip().lower() not in ctx["labels"]]
             if missing:
-                print(f"    (note: labels not found on DEEP, skipped: {missing})")
-        else:
-            list_id = ctx["lists"].get(it.get("suggestedTrelloList", "Inbox").lower()) or ctx["lists"].get("inbox")
-            label_ids = []
+                print(f"    (note: labels not found on {board}, skipped: {missing})")
 
         params = {"idList": list_id, "name": it["title"], "desc": card_desc(it)}
         if it.get("appointment", {}) and it["appointment"].get("start"):

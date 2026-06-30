@@ -103,8 +103,10 @@ async function ensureWsLists(ctx: any) {
 }
 
 function captureListId(ctx: any) {
-  for (const name of Object.keys(ctx.lists)) if (name.startsWith("capture")) return ctx.lists[name];
-  throw new Error("DEEP board has no CAPTURE list");
+  // "CAPTURE — DUMP NEW TASKS HERE" (may have an emoji prefix on Josh's board)
+  for (const name of Object.keys(ctx.lists)) if (name.includes("capture") && name.includes("dump")) return ctx.lists[name];
+  for (const name of Object.keys(ctx.lists)) if (name.includes("capture")) return ctx.lists[name];
+  throw new Error("board has no CAPTURE list");
 }
 
 async function pushItems(items: any[]) {
@@ -120,11 +122,12 @@ async function pushItems(items: any[]) {
     if (ctx.have.has((it.title || "").trim().toLowerCase())) { skipped++; continue; }
 
     let listId: string, labelIds: string[] = [];
-    if (board === "DEEP") {
+    if (board === "Weekly Sweep") {
+      listId = ctx.lists[(it.suggestedTrelloList || "Inbox").toLowerCase()] || ctx.lists["inbox"];
+    } else {
+      // DEEP, REACTIVE, or any other Trello board → CAPTURE intake + labels
       listId = captureListId(ctx);
       labelIds = (it.labels || []).map((n: string) => ctx.labels[n.trim().toLowerCase()]).filter(Boolean);
-    } else {
-      listId = ctx.lists[(it.suggestedTrelloList || "Inbox").toLowerCase()] || ctx.lists["inbox"];
     }
     const params: Record<string, string> = { idList: listId, name: it.title, desc: cardDesc(it) };
     if (it.appointment?.start) params.due = it.appointment.start;

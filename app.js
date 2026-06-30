@@ -286,7 +286,7 @@ async function addManualTask() {
     const list = loadManual();
     const t = list.find((x) => x.id === task.id);
     if (t) { t.sent = true; saveManual(list); renderTasks(); }
-    setStatus("✓ Captured to your " + (target === "DEEP" ? "DEEP" : "Personal") + " board" +
+    setStatus("✓ Captured to the " + boardName(target) + " board" +
       (r.created === 0 ? " (already there)." : "."), "ok");
   } else {
     setStatus("⚠︎ Saved here — tap ↻ on the task to send once your passphrase is right (" + r.msg + ").", "warn");
@@ -301,6 +301,10 @@ function setStatus(msg, kind) {
   if (kind === "ok") setTimeout(() => { if (el.textContent === msg) el.textContent = ""; }, 4000);
 }
 
+function boardName(target) {
+  return { "DEEP": "DEEP", "REACTIVE": "Josh's REACTIVE", "Weekly Sweep": "Personal" }[target] || target;
+}
+
 async function captureToTrello(task, target) {
   const item = {
     title: task.title,
@@ -313,7 +317,9 @@ async function captureToTrello(task, target) {
     confidence: 1,
     needsDecision: false,
     board: target,
-    labels: target === "DEEP" ? ["Owner: Jack", "THIS WEEK"] : [],
+    labels: target === "DEEP" ? ["Owner: Jack", "THIS WEEK"]
+      : target === "REACTIVE" ? ["Owner: Josh", "THIS WEEK"]
+      : [],
     suggestedTrelloList: task.type === "appointment" ? "Appointments" : "Inbox",
   };
   let pass = getPass();
@@ -346,7 +352,7 @@ async function resendTask(id) {
     task.sent = true;
     saveManual(tasks);
     renderTasks();
-    setStatus("✓ Sent to your " + ((task.target || "DEEP") === "DEEP" ? "DEEP" : "Personal") + " board.", "ok");
+    setStatus("✓ Sent to the " + boardName(task.target || "DEEP") + " board.", "ok");
   } else {
     setStatus("⚠︎ Still couldn't send (" + r.msg + ").", "warn");
   }
