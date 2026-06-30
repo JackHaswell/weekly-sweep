@@ -21,8 +21,11 @@ const BOARD_NAME = "Weekly Sweep";
 const LISTS = ["This Week", "Appointments", "Inbox", "Later"];
 const BLOB_KEY = "sweep_candidates";
 
+// Lock browser access to the app's own origin (non-browser clients like the
+// Mac uploader aren't subject to CORS, so they keep working).
+const ALLOWED_ORIGIN = "https://jackhaswell.github.io";
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, X-Sweep-Pass",
 };
@@ -34,8 +37,21 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function authed(req: Request) {
-  return req.headers.get("X-Sweep-Pass") === Deno.env.get("SWEEP_PASS");
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Constant-time-ish compare so the passphrase can't be probed by timing.
+function safeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function authed(req: Request) {
+  const given = req.headers.get("X-Sweep-Pass") || "";
+  const ok = safeEqual(given, Deno.env.get("SWEEP_PASS") || "\0");
+  if (!ok) await sleep(600); // slow down any brute-force attempt
+  return ok;
 }
 
 async function trello(method: string, path: string, params: Record<string, string>) {
@@ -111,7 +127,7 @@ export default async function (req: Request): Promise<Response> {
   }
 
   // Everything below requires the passphrase.
-  if (!authed(req)) return json({ error: "unauthorized" }, 401);
+  if (!(await authed(req))) return json({ error: "unauthorized" }, 401);
 
   if (req.method === "GET" && path.endsWith("/candidates")) {
     const data = await blob.getJSON(BLOB_KEY).catch(() => null);
