@@ -48,6 +48,14 @@
       <button id="qa-add" class="qa-add" aria-label="Add task">＋</button>
     </div>
     <div class="quickadd-more">
+      <div class="qa-row qa-dest">
+        <span>Send to</span>
+        <select id="qa-target" class="qa-select">
+          <option value="DEEP">📋 My DEEP board (work)</option>
+          <option value="Weekly Sweep">🏠 Personal board</option>
+          <option value="local">📝 Just this list (private)</option>
+        </select>
+      </div>
       <button id="qa-toggle" class="qa-toggle" type="button">+ date / appointment</button>
       <div id="qa-details" class="qa-details hidden">
         <textarea id="qa-detail" class="qa-detail" rows="2" placeholder="Notes (optional)"></textarea>
@@ -56,6 +64,7 @@
         <label class="qa-row hidden" id="qa-when-row"><span>When</span><input type="datetime-local" id="qa-when" /></label>
         <label class="qa-row hidden" id="qa-loc-row"><span>Where</span><input type="text" id="qa-loc" placeholder="Location (optional)" /></label>
       </div>
+      <div id="qa-status" class="qa-status"></div>
     </div>
 
     <main id="tasks-list" class="list"></main>

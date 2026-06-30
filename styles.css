@@ -117,6 +117,12 @@ body{
 .qa-row input[type=date],.qa-row input[type=datetime-local],.qa-row input[type=text]{
   flex:1;background:var(--card2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:9px 10px;font:inherit}
 .qa-row input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}
+.qa-dest{padding:10px 2px 2px}
+.qa-select{flex:1;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:9px 10px;font:inherit}
+.qa-select:focus{outline:none;border-color:var(--accent)}
+.qa-status{min-height:18px;padding:6px 2px 0;font-size:13px;color:var(--muted)}
+.qa-status.ok{color:var(--ok)}
+.qa-status.warn{color:var(--snooze)}
 
 /* TASK ROWS */
 .trow{display:flex;align-items:flex-start;gap:12px;background:var(--card);border:1px solid var(--line);

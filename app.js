@@ -247,13 +247,14 @@ function saveManual(tasks) { localStorage.setItem(MANUAL_KEY, JSON.stringify(tas
 
 function newId() { return "man_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
-function addManualTask() {
+async function addManualTask() {
   const title = $("#qa-input").value.trim();
   if (!title) { $("#qa-input").focus(); return; }
   const isAppt = $("#qa-isappt").checked;
   const when = $("#qa-when").value;
   const due = $("#qa-due").value;
   const loc = $("#qa-loc").value.trim();
+  const target = $("#qa-target").value;
 
   const task = {
     id: newId(),
@@ -267,12 +268,66 @@ function addManualTask() {
       : null,
     createdAt: new Date().toISOString(),
     done: false,
+    target,
   };
   const tasks = loadManual();
   tasks.unshift(task);
   saveManual(tasks);
   resetQuickAdd();
   renderTasks();
+
+  if (target === "local") {
+    setStatus("Saved to this device.", "");
+    return;
+  }
+  setStatus("Sending to Trello…", "");
+  const r = await captureToTrello(task, target);
+  if (r.ok) {
+    setStatus("✓ Captured to your " + (target === "DEEP" ? "DEEP" : "Personal") + " board" +
+      (r.created === 0 ? " (already there)." : "."), "ok");
+  } else {
+    setStatus("⚠︎ Saved here, but couldn't reach Trello (" + r.msg + ").", "warn");
+  }
+}
+
+function setStatus(msg, kind) {
+  const el = $("#qa-status");
+  if (!el) return;
+  el.textContent = msg;
+  el.className = "qa-status" + (kind ? " " + kind : "");
+  if (kind === "ok") setTimeout(() => { if (el.textContent === msg) el.textContent = ""; }, 4000);
+}
+
+async function captureToTrello(task, target) {
+  const pass = getPass();
+  if (!pass) return { ok: false, msg: "no passphrase" };
+  const item = {
+    title: task.title,
+    detail: task.detail || "Added via quick capture",
+    type: task.type,
+    source: "manual",
+    from: "Quick capture",
+    due: task.due,
+    appointment: task.appointment,
+    confidence: 1,
+    needsDecision: false,
+    board: target,
+    labels: target === "DEEP" ? ["Owner: Jack", "THIS WEEK"] : [],
+    suggestedTrelloList: task.type === "appointment" ? "Appointments" : "Inbox",
+  };
+  try {
+    const res = await fetch(BROKER + "/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Sweep-Pass": pass },
+      body: JSON.stringify({ items: [item] }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { localStorage.removeItem("sweep_pass"); return { ok: false, msg: "wrong passphrase" }; }
+    if (!res.ok) return { ok: false, msg: data.error || ("HTTP " + res.status) };
+    return { ok: true, created: data.created };
+  } catch (_) {
+    return { ok: false, msg: "offline" };
+  }
 }
 
 function resetQuickAdd() {
