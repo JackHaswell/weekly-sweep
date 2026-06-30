@@ -16,7 +16,30 @@ const el = (tag, cls, html) => {
 };
 
 /* ---------- data ---------- */
+const BROKER = "https://jackhaswell--d2797fbe73eb11f1b6dd1607ee4eb77e.web.val.run";
+
+function getPass(force) {
+  let p = localStorage.getItem("sweep_pass");
+  if (!p || force) {
+    p = window.prompt("Enter your Weekly Sweep passphrase");
+    if (p) { p = p.trim(); localStorage.setItem("sweep_pass", p); }
+  }
+  return p ? p.trim() : null;
+}
+
 async function loadCandidates() {
+  // Prefer the live sweep from the cloud broker (real data, any network).
+  const pass = getPass();
+  if (pass) {
+    try {
+      const res = await fetch(BROKER + "/candidates", { headers: { "X-Sweep-Pass": pass }, cache: "no-store" });
+      if (res.status === 401) { localStorage.removeItem("sweep_pass"); }
+      else if (res.ok) {
+        const data = await res.json();
+        if (data && data.items && data.items.length) return data;
+      }
+    } catch (_) { /* offline / not set up — fall back to bundled demo */ }
+  }
   const res = await fetch("data/candidates.json", { cache: "no-store" });
   if (!res.ok) throw new Error("HTTP " + res.status);
   return res.json();
@@ -175,22 +198,35 @@ function openSummary() {
   $("#summary").classList.remove("hidden");
 }
 
-function confirmPush() {
-  // Day 1: no live integrations yet — record the decision and show it worked end-to-end.
-  const payload = {
-    sweepId: STATE.sweep.id,
-    decidedAt: new Date().toISOString(),
-    toTrello: STATE.items.filter((i) => i.decision === "approved").map((i) => i.id),
-    toCalendar: STATE.items.filter((i) => i.decision === "approved" && i.type === "appointment").map((i) => i.id),
-    dismissed: STATE.items.filter((i) => i.decision === "rejected").map((i) => i.id),
-    snoozed: STATE.items.filter((i) => i.decision === "snoozed").map((i) => i.id),
-  };
-  localStorage.setItem("sweep_result_" + STATE.sweep.id, JSON.stringify(payload));
-  $("#summary").classList.add("hidden");
-  showView("home");
-  $("#home-meta").innerHTML =
-    "✓ Done. <b>" + payload.toTrello.length + "</b> to Trello, <b>" +
-    payload.toCalendar.length + "</b> to calendar.<br><span style='font-size:13px'>(Live push wires up Day 2–3.)</span>";
+async function confirmPush() {
+  const approved = STATE.items.filter((i) => i.decision === "approved");
+  if (!approved.length) { $("#summary").classList.add("hidden"); return; }
+  const pass = getPass();
+  const btn = $("#btn-confirm");
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Pushing…";
+  try {
+    const res = await fetch(BROKER + "/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Sweep-Pass": pass || "" },
+      body: JSON.stringify({ items: approved }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { localStorage.removeItem("sweep_pass"); throw new Error("Wrong passphrase — tap Confirm to re-enter it."); }
+    if (!res.ok) throw new Error(data.error || ("Push failed (HTTP " + res.status + ")"));
+    $("#summary").classList.add("hidden");
+    showView("home");
+    $("#home-meta").innerHTML =
+      "✓ Sent <b>" + (data.created || 0) + "</b> card(s) to Trello" +
+      (data.skipped ? " (" + data.skipped + " already there)" : "") + ".<br>" +
+      "<a href='" + (data.board || "#") + "' target='_blank' style='color:var(--accent);font-weight:700'>Open your board →</a>";
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
 }
 
 /* ---------- manual tasks ---------- */
