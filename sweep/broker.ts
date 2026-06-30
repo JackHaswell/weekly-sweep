@@ -1,21 +1,25 @@
 // Weekly Sweep — cloud broker (Val.town HTTP val)
 //
-// Holds the Trello secret server-side so the public PWA never sees it.
-// The PWA POSTs approved items here; the broker creates Trello cards.
+// Holds the Trello secret + the latest sweep server-side so the public PWA
+// never sees secrets and can fetch/push from any network.
 //
-// Env vars to set in Val.town (Settings → Environment Variables):
+// Env vars (Val.town → Env vars):
 //   TRELLO_KEY    – the Power-Up API key
 //   TRELLO_TOKEN  – the user token (read,write)
-//   SWEEP_PASS    – a shared passphrase; the PWA sends it, the broker checks it
+//   SWEEP_PASS    – shared passphrase; the PWA + the Mac uploader send it
 //
-// Endpoints:
-//   GET  /            → health check
-//   POST /push        → body {items:[...]} → creates a Trello card per item
-//                       (header  X-Sweep-Pass: <SWEEP_PASS>)
+// Endpoints (all but GET / require header  X-Sweep-Pass: <SWEEP_PASS>):
+//   GET  /                → health check (open)
+//   GET  /candidates      → latest sweep JSON (for the phone to review)
+//   POST /candidates      → the Mac uploads a fresh sweep here
+//   POST /push            → body {items:[...]} → creates a Trello card per item
+
+import { blob } from "https://esm.town/v/std/blob";
 
 const TRELLO = "https://api.trello.com/1";
 const BOARD_NAME = "Weekly Sweep";
 const LISTS = ["This Week", "Appointments", "Inbox", "Later"];
+const BLOB_KEY = "sweep_candidates";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +32,10 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...CORS, "Content-Type": "application/json" },
   });
+}
+
+function authed(req: Request) {
+  return req.headers.get("X-Sweep-Pass") === Deno.env.get("SWEEP_PASS");
 }
 
 async function trello(method: string, path: string, params: Record<string, string>) {
@@ -69,43 +77,62 @@ function cardDesc(it: any) {
   return bits.filter(Boolean).join("\n");
 }
 
+async function pushToTrello(items: any[]) {
+  const boardId = await ensureBoard();
+  const lists = await ensureLists(boardId);
+  const existing = await trello("GET", `/boards/${boardId}/cards`, { fields: "name" });
+  const have = new Set(existing.map((c: any) => c.name.trim().toLowerCase()));
+
+  let created = 0, skipped = 0;
+  for (const it of items) {
+    if (have.has((it.title || "").trim().toLowerCase())) { skipped++; continue; }
+    const listName = (it.suggestedTrelloList || "Inbox").toLowerCase();
+    const params: Record<string, string> = {
+      idList: lists[listName] || lists["inbox"],
+      name: it.title,
+      desc: cardDesc(it),
+    };
+    if (it.appointment?.start) params.due = it.appointment.start;
+    else if (it.due) params.due = it.due;
+    await trello("POST", "/cards", params);
+    created++;
+  }
+  const board = await trello("GET", `/boards/${boardId}`, { fields: "url" });
+  return { created, skipped, board: board.url };
+}
+
 export default async function (req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   const url = new URL(req.url);
+  const path = url.pathname;
 
-  if (req.method === "GET") return json({ ok: true, service: "weekly-sweep-broker" });
+  if (req.method === "GET" && (path === "/" || path === "")) {
+    return json({ ok: true, service: "weekly-sweep-broker" });
+  }
 
-  if (req.method === "POST" && url.pathname.endsWith("/push")) {
-    if (req.headers.get("X-Sweep-Pass") !== Deno.env.get("SWEEP_PASS")) {
-      return json({ error: "unauthorized" }, 401);
-    }
+  // Everything below requires the passphrase.
+  if (!authed(req)) return json({ error: "unauthorized" }, 401);
+
+  if (req.method === "GET" && path.endsWith("/candidates")) {
+    const data = await blob.getJSON(BLOB_KEY).catch(() => null);
+    if (!data) return json({ sweep: null, items: [] });
+    return json(data);
+  }
+
+  if (req.method === "POST" && path.endsWith("/candidates")) {
+    let body: any;
+    try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+    await blob.setJSON(BLOB_KEY, body);
+    return json({ ok: true, items: (body.items || []).length });
+  }
+
+  if (req.method === "POST" && path.endsWith("/push")) {
     let body: any;
     try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
     const items = (body.items || []).filter(Boolean);
     if (!items.length) return json({ created: 0, message: "no items" });
-
     try {
-      const boardId = await ensureBoard();
-      const lists = await ensureLists(boardId);
-      const existing = await trello("GET", `/boards/${boardId}/cards`, { fields: "name" });
-      const have = new Set(existing.map((c: any) => c.name.trim().toLowerCase()));
-
-      let created = 0, skipped = 0;
-      for (const it of items) {
-        if (have.has((it.title || "").trim().toLowerCase())) { skipped++; continue; }
-        const listName = (it.suggestedTrelloList || "Inbox").toLowerCase();
-        const params: Record<string, string> = {
-          idList: lists[listName] || lists["inbox"],
-          name: it.title,
-          desc: cardDesc(it),
-        };
-        if (it.appointment?.start) params.due = it.appointment.start;
-        else if (it.due) params.due = it.due;
-        await trello("POST", "/cards", params);
-        created++;
-      }
-      const board = await trello("GET", `/boards/${boardId}`, { fields: "url" });
-      return json({ created, skipped, board: board.url });
+      return json(await pushToTrello(items));
     } catch (e) {
       return json({ error: String(e) }, 500);
     }
