@@ -29,16 +29,21 @@ function getPass(force) {
 
 async function loadCandidates() {
   // Prefer the live sweep from the cloud broker (real data, any network).
-  const pass = getPass();
-  if (pass) {
+  let pass = getPass();
+  for (let attempt = 0; attempt < 2 && pass; attempt++) {
     try {
       const res = await fetch(BROKER + "/candidates", { headers: { "X-Sweep-Pass": pass }, cache: "no-store" });
-      if (res.status === 401) { localStorage.removeItem("sweep_pass"); }
-      else if (res.ok) {
+      if (res.status === 401) {                 // wrong/old passphrase — ask again once
+        localStorage.removeItem("sweep_pass");
+        pass = getPass(true);
+        continue;
+      }
+      if (res.ok) {
         const data = await res.json();
         if (data && data.items && data.items.length) return data;
       }
-    } catch (_) { /* offline / not set up — fall back to bundled demo */ }
+      break;
+    } catch (_) { break; } // offline / not set up — fall back to bundled demo
   }
   const res = await fetch("data/candidates.json", { cache: "no-store" });
   if (!res.ok) throw new Error("HTTP " + res.status);
