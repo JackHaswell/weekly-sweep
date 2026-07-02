@@ -220,6 +220,12 @@ async function confirmPush() {
     const data = await res.json().catch(() => ({}));
     if (res.status === 401) { localStorage.removeItem("sweep_pass"); throw new Error("Wrong passphrase — tap Confirm to re-enter it."); }
     if (!res.ok) throw new Error(data.error || ("Push failed (HTTP " + res.status + ")"));
+    // Sync decisions back to the cloud so the Mac can write approved appointments to the Outlook calendar.
+    fetch(BROKER + "/candidates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Sweep-Pass": pass || "" },
+      body: JSON.stringify({ sweep: STATE.sweep || { id: "live" }, items: STATE.items }),
+    }).catch(() => {});
     $("#summary").classList.add("hidden");
     showView("home");
     const boards = data.boards || {};
