@@ -54,14 +54,19 @@ function decisionsKey(id) { return "sweep_decisions_" + id; }
 function saveDecisions() {
   if (!STATE.sweep) return;
   const map = {};
-  STATE.items.forEach((it) => (map[it.id] = it.decision));
+  STATE.items.forEach((it) => (map[it.id] = { d: it.decision, b: it.board }));
   localStorage.setItem(decisionsKey(STATE.sweep.id), JSON.stringify(map));
 }
 function restoreDecisions() {
   if (!STATE.sweep) return;
   try {
     const map = JSON.parse(localStorage.getItem(decisionsKey(STATE.sweep.id)) || "{}");
-    STATE.items.forEach((it) => { if (map[it.id]) it.decision = map[it.id]; });
+    STATE.items.forEach((it) => {
+      const m = map[it.id];
+      if (!m) return;
+      if (typeof m === "string") { it.decision = m; }          // back-compat with old format
+      else { if (m.d) it.decision = m.d; if (m.b) it.board = m.b; }
+    });
   } catch (_) {}
 }
 
@@ -129,7 +134,25 @@ function renderCard(it) {
   actions.appendChild(mkAct("later", "🕓 Later", it, "snoozed"));
   actions.appendChild(mkAct("no", "❌ Bin", it, "rejected"));
   card.appendChild(actions);
+
+  // Board picker — revealed (via CSS) once the item is kept, pre-selected to the suggested board.
+  const pick = el("div", "boardpick");
+  pick.appendChild(el("span", "boardpick__lbl", "Send to →"));
+  ["DEEP", "REACTIVE", "Weekly Sweep"].forEach((bd) => {
+    const chip = el("button", "bchip" + (it.board === bd ? " sel" : ""), boardName(bd));
+    chip.dataset.board = bd;
+    chip.addEventListener("click", (e) => { e.stopPropagation(); setBoard(it, bd); });
+    pick.appendChild(chip);
+  });
+  card.appendChild(pick);
   return card;
+}
+
+function setBoard(it, board) {
+  it.board = board;
+  saveDecisions();
+  const card = document.querySelector('.card[data-id="' + it.id + '"]');
+  card.querySelectorAll(".bchip").forEach((b) => b.classList.toggle("sel", b.dataset.board === board));
 }
 
 function mkAct(kind, label, it, decision) {

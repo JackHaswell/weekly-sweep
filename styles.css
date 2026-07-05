@@ -74,6 +74,15 @@ body{
 .act.sel.no{background:var(--no);border-color:var(--no);color:#2a0006}
 .act.sel.later{background:var(--snooze);border-color:var(--snooze);color:#2a1a00}
 
+/* BOARD PICKER (shown once an item is kept) */
+.boardpick{display:none;flex-wrap:wrap;align-items:center;gap:8px;margin-top:11px;padding-top:11px;border-top:1px solid var(--line)}
+.card[data-decision="approved"] .boardpick{display:flex}
+.boardpick__lbl{font-size:12px;font-weight:700;color:var(--muted)}
+.bchip{border:1px solid var(--line);background:var(--card2);color:var(--ink);padding:7px 13px;border-radius:999px;
+  font-weight:700;font-size:13px;cursor:pointer;transition:.12s}
+.bchip:active{transform:scale(.95)}
+.bchip.sel{background:var(--accent);border-color:var(--accent);color:#04122a}
+
 /* ACTION BAR */
 .actionbar{position:fixed;left:0;right:0;bottom:0;padding:12px 14px calc(12px + var(--safe-b));
   display:flex;gap:12px;align-items:center;background:linear-gradient(rgba(11,18,32,0),var(--bg) 35%);max-width:680px;margin:0 auto}
