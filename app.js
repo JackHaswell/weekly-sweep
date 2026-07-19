@@ -240,7 +240,9 @@ function openSummary() {
       ' <span style="color:var(--muted)">· ' + it.suggestedTrelloList + "</span></span>"));
   });
 
-  const appts = approved.filter((i) => i.type === "appointment");
+  // Only real appointments (with a start time) go to the calendar — an item tagged
+  // "appointment" but missing its appointment object must not crash the summary.
+  const appts = approved.filter((i) => i.type === "appointment" && i.appointment && i.appointment.start);
   body.appendChild(el("div", "sumhead", "→ Outlook calendar (" + appts.length + ")"));
   if (!appts.length) body.appendChild(el("div", "sumrow", '<span style="color:var(--muted)">No appointments approved</span>'));
   appts.forEach((it) => {
