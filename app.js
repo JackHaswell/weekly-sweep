@@ -18,24 +18,56 @@ const el = (tag, cls, html) => {
 /* ---------- data ---------- */
 const BROKER = "https://jackhaswell--d2797fbe73eb11f1b6dd1607ee4eb77e.web.val.run";
 
-function getPass(force) {
-  let p = localStorage.getItem("sweep_pass");
-  if (!p || force) {
-    p = window.prompt("Enter your Weekly Sweep passphrase");
-    if (p) { p = p.trim(); localStorage.setItem("sweep_pass", p); }
-  }
+function getStoredPass() {
+  const p = localStorage.getItem("sweep_pass");
   return p ? p.trim() : null;
+}
+
+// In-app passphrase entry — window.prompt() is silently disabled inside an
+// installed iOS home-screen app, which made the approve button appear dead.
+function askPassphrase(msg) {
+  return new Promise((resolve) => {
+    const wrap = el("div", "modal");
+    wrap.innerHTML =
+      '<div class="modal__card" style="max-width:420px">' +
+        "<h2>Passphrase</h2>" +
+        '<p style="color:var(--muted);margin:0 0 14px">' + (msg || "Enter your Weekly Sweep passphrase") + "</p>" +
+        '<input id="pass-input" type="password" autocomplete="current-password" ' +
+          'style="width:100%;padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--ink);font-size:16px;box-sizing:border-box" placeholder="Passphrase" />' +
+        '<div class="modal__actions">' +
+          '<button id="pass-cancel" class="ghost-btn">Cancel</button>' +
+          '<button id="pass-ok" class="submit-btn">Save</button>' +
+        "</div>" +
+      "</div>";
+    document.body.appendChild(wrap);
+    const input = wrap.querySelector("#pass-input");
+    setTimeout(() => input.focus(), 50);
+    const done = (val) => { wrap.remove(); resolve(val); };
+    const save = () => {
+      const v = input.value.trim();
+      if (v) { localStorage.setItem("sweep_pass", v); done(v); } else input.focus();
+    };
+    wrap.querySelector("#pass-ok").addEventListener("click", save);
+    wrap.querySelector("#pass-cancel").addEventListener("click", () => done(null));
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
+  });
+}
+
+async function ensurePass(force) {
+  const p = getStoredPass();
+  if (p && !force) return p;
+  return await askPassphrase(force ? "That passphrase didn't work — please re-enter it" : "Enter your Weekly Sweep passphrase");
 }
 
 async function loadCandidates() {
   // Prefer the live sweep from the cloud broker (real data, any network).
-  let pass = getPass();
+  let pass = await ensurePass();
   for (let attempt = 0; attempt < 2 && pass; attempt++) {
     try {
       const res = await fetch(BROKER + "/candidates", { headers: { "X-Sweep-Pass": pass }, cache: "no-store" });
       if (res.status === 401) {                 // wrong/old passphrase — ask again once
         localStorage.removeItem("sweep_pass");
-        pass = getPass(true);
+        pass = await ensurePass(true);
         continue;
       }
       if (res.ok) {
@@ -226,39 +258,62 @@ function openSummary() {
   $("#summary").classList.remove("hidden");
 }
 
+function showSummaryError(msg) {
+  let e = $("#summary-error");
+  if (!e) {
+    e = el("div", null);
+    e.id = "summary-error";
+    e.style.cssText = "color:var(--no);font-weight:700;font-size:14px;margin-top:12px";
+    const actions = $("#summary .modal__actions");
+    actions.parentNode.insertBefore(e, actions);
+  }
+  e.textContent = msg || "";
+  e.style.display = msg ? "block" : "none";
+}
+
 async function confirmPush() {
   const approved = STATE.items.filter((i) => i.decision === "approved");
   if (!approved.length) { $("#summary").classList.add("hidden"); return; }
-  const pass = getPass();
   const btn = $("#btn-confirm");
   const label = btn.textContent;
+  showSummaryError("");
   btn.disabled = true;
   btn.textContent = "Pushing…";
   try {
-    const res = await fetch(BROKER + "/push", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Sweep-Pass": pass || "" },
-      body: JSON.stringify({ items: approved }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.status === 401) { localStorage.removeItem("sweep_pass"); throw new Error("Wrong passphrase — tap Confirm to re-enter it."); }
-    if (!res.ok) throw new Error(data.error || ("Push failed (HTTP " + res.status + ")"));
-    // Sync decisions back to the cloud so the Mac can write approved appointments to the Outlook calendar.
-    fetch(BROKER + "/candidates", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Sweep-Pass": pass || "" },
-      body: JSON.stringify({ sweep: STATE.sweep || { id: "live" }, items: STATE.items }),
-    }).catch(() => {});
-    $("#summary").classList.add("hidden");
-    showView("home");
-    const boards = data.boards || {};
-    const url = boards["DEEP"] || boards["Weekly Sweep"] || Object.values(boards)[0] || "#";
-    $("#home-meta").innerHTML =
-      "✓ Sent <b>" + (data.created || 0) + "</b> card(s) to Trello" +
-      (data.skipped ? " (" + data.skipped + " already there)" : "") + ".<br>" +
-      "<a href='" + url + "' target='_blank' style='color:var(--accent);font-weight:700'>Open Trello →</a>";
+    // Retry once if the stored passphrase is rejected (re-ask in-app, not via prompt()).
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const pass = await ensurePass(attempt > 0);
+      if (!pass) { showSummaryError("A passphrase is needed to send to Trello."); return; }
+      const res = await fetch(BROKER + "/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Sweep-Pass": pass },
+        body: JSON.stringify({ items: approved }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) { localStorage.removeItem("sweep_pass"); continue; }
+      if (!res.ok) throw new Error(data.error || ("Push failed (HTTP " + res.status + ")"));
+      // Sync decisions back to the cloud so the Mac can write approved appointments to the Outlook calendar.
+      fetch(BROKER + "/candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Sweep-Pass": pass },
+        body: JSON.stringify({ sweep: STATE.sweep || { id: "live" }, items: STATE.items }),
+      }).catch(() => {});
+      $("#summary").classList.add("hidden");
+      showView("home");
+      const boards = data.boards || {};
+      const url = boards["DEEP"] || boards["Weekly Sweep"] || Object.values(boards)[0] || "#";
+      $("#home-meta").innerHTML =
+        "✓ Sent <b>" + (data.created || 0) + "</b> card(s) to Trello" +
+        (data.skipped ? " (" + data.skipped + " already there)" : "") + ".<br>" +
+        "<a href='" + url + "' target='_blank' style='color:var(--accent);font-weight:700'>Open Trello →</a>";
+      return;
+    }
+    showSummaryError("That passphrase didn't work — tap Confirm to try again.");
   } catch (e) {
-    alert(e.message);
+    const net = /fail|fetch|load failed|network/i.test(e.message || "");
+    showSummaryError(net
+      ? "Couldn't reach the server — check your connection and tap Confirm to retry."
+      : (e.message || "Couldn't send to Trello."));
   } finally {
     btn.disabled = false;
     btn.textContent = label;
@@ -351,7 +406,7 @@ async function captureToTrello(task, target) {
       : [],
     suggestedTrelloList: task.type === "appointment" ? "Appointments" : "Inbox",
   };
-  let pass = getPass();
+  let pass = await ensurePass();
   for (let attempt = 0; attempt < 2; attempt++) {       // re-ask once if the passphrase is wrong
     if (!pass) return { ok: false, msg: "no passphrase" };
     try {
@@ -361,7 +416,7 @@ async function captureToTrello(task, target) {
         body: JSON.stringify({ items: [item] }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.status === 401) { localStorage.removeItem("sweep_pass"); pass = getPass(true); continue; }
+      if (res.status === 401) { localStorage.removeItem("sweep_pass"); pass = await ensurePass(true); continue; }
       if (!res.ok) return { ok: false, msg: data.error || ("HTTP " + res.status) };
       return { ok: true, created: data.created };
     } catch (_) {

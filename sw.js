@@ -1,6 +1,6 @@
-const CACHE = "sweep-v10";
+const CACHE = "sweep-v11";
 const ASSETS = [
-  ".", "index.html", "styles.css", "app.js",
+  ".", "index.html", "styles.css?v=11", "app.js?v=11",
   "manifest.webmanifest", "icons/icon.svg", "data/candidates.json"
 ];
 
