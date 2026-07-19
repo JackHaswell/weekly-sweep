@@ -333,6 +333,43 @@ function saveManual(tasks) { localStorage.setItem(MANUAL_KEY, JSON.stringify(tas
 
 function newId() { return "man_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
+/* ---------- tag picker (so manual tasks carry the same labels as the sweep) ---------- */
+const TAG_GROUPS = [
+  ["Priority", ["CRITICAL", "High", "TODAY", "THIS WEEK"]],
+  ["Property", ["8 Station Road", "100-104 High Northgate", "33 Alderson Street", "Elwick Road", "23 Kilwick Street"]],
+  ["Category", ["LEGAL", "COMPLIANCE", "ACCOUNTING", "TAX", "CONTRACT", "ADMIN", "STRATEGY", "Management Task", "MAINTENANCE", "TENANT COMMS", "CONTRACTOR", "INVESTOR"]],
+];
+const qaLabels = new Set();
+
+function renderTagPicker() {
+  const box = $("#qa-tags");
+  if (!box) return;
+  box.innerHTML = "";
+  TAG_GROUPS.forEach(([group, labels]) => {
+    box.appendChild(el("div", "qa-tags__group", group));
+    const row = el("div", "qa-tags__row");
+    labels.forEach((lb) => {
+      const chip = el("button", "tagchip" + (qaLabels.has(lb) ? " sel" : ""), escapeHtml(lb));
+      chip.type = "button";
+      chip.addEventListener("click", () => {
+        if (qaLabels.has(lb)) qaLabels.delete(lb); else qaLabels.add(lb);
+        chip.classList.toggle("sel");
+      });
+      row.appendChild(chip);
+    });
+    box.appendChild(row);
+  });
+}
+
+// Owner is auto-set from the board; a task with no chosen tags still gets THIS WEEK.
+function labelsFor(target, chosen) {
+  chosen = chosen || [];
+  if (target === "Weekly Sweep" || target === "local") return chosen.slice();
+  const owner = target === "REACTIVE" ? "Owner: Josh" : "Owner: Jack";
+  const base = chosen.length ? chosen : ["THIS WEEK"];
+  return [...new Set([owner, ...base])];
+}
+
 async function addManualTask() {
   const title = $("#qa-input").value.trim();
   if (!title) { $("#qa-input").focus(); return; }
@@ -355,6 +392,7 @@ async function addManualTask() {
     createdAt: new Date().toISOString(),
     done: false,
     target,
+    labels: [...qaLabels],
   };
   const tasks = loadManual();
   tasks.unshift(task);
@@ -403,9 +441,7 @@ async function captureToTrello(task, target) {
     confidence: 1,
     needsDecision: false,
     board: target,
-    labels: target === "DEEP" ? ["Owner: Jack", "THIS WEEK"]
-      : target === "REACTIVE" ? ["Owner: Josh", "THIS WEEK"]
-      : [],
+    labels: labelsFor(target, task.labels),
     suggestedTrelloList: task.type === "appointment" ? "Appointments" : "Inbox",
   };
   let pass = await ensurePass();
@@ -450,6 +486,10 @@ function resetQuickAdd() {
   applyApptToggle();
   $("#qa-details").classList.add("hidden");
   $("#qa-toggle").textContent = "+ date / appointment";
+  qaLabels.clear();
+  renderTagPicker();
+  $("#qa-tags").classList.add("hidden");
+  $("#qa-tags-toggle").textContent = "+ tags";
   $("#qa-input").focus();
 }
 
@@ -583,7 +623,13 @@ $("#qa-toggle").addEventListener("click", () => {
   d.classList.toggle("hidden");
   $("#qa-toggle").textContent = d.classList.contains("hidden") ? "+ date / appointment" : "– less";
 });
+$("#qa-tags-toggle").addEventListener("click", () => {
+  const t = $("#qa-tags");
+  t.classList.toggle("hidden");
+  $("#qa-tags-toggle").textContent = t.classList.contains("hidden") ? "+ tags" : "– tags";
+});
 
+renderTagPicker();
 updateTasksCount();
 
 if ("serviceWorker" in navigator) {

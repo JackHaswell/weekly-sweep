@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="styles.css?v=12" />
+  <link rel="stylesheet" href="styles.css?v=13" />
   <title>Weekly Sweep</title>
 </head>
 <body>
@@ -57,6 +57,8 @@
           <option value="local">📝 Just this list (private)</option>
         </select>
       </div>
+      <button id="qa-tags-toggle" class="qa-toggle" type="button">+ tags</button>
+      <div id="qa-tags" class="qa-tags hidden"></div>
       <button id="qa-toggle" class="qa-toggle" type="button">+ date / appointment</button>
       <div id="qa-details" class="qa-details hidden">
         <textarea id="qa-detail" class="qa-detail" rows="2" placeholder="Notes (optional)"></textarea>
@@ -104,6 +106,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>
